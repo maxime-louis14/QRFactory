@@ -56,24 +56,19 @@ func InitGaloisField() {
 
 // GfMultiply effectue une multiplication dans le champ de Galois
 func GfMultiply(x, y byte) byte {
-	// Cas spécial pour zéro
 	if x == 0 || y == 0 {
 		return 0
 	}
 
-	// Si les tables ne sont pas initialisées, on retourne une valeur sûre pour éviter la récursion
 	if !gfInitialized {
-		// Au lieu d'appeler InitGaloisField() qui pourrait créer une récursion infinie,
-		// on retourne une valeur par défaut qui permet de continuer l'exécution
-		fmt.Println("ATTENTION: Tentative d'utiliser GfMultiply avant initialisation")
 		return 0
 	}
 
-	// Utiliser les tables initialisées pour effectuer la multiplication
 	gfMutex.RLock()
 	defer gfMutex.RUnlock()
 
-	return gfExp[(gfLog[x]+gfLog[y])%255]
+	// Use int to avoid byte overflow when summing log values (max 254+254=508)
+	return gfExp[(int(gfLog[x])+int(gfLog[y]))%255]
 }
 
 // GenerateReedSolomon génère les octets de correction d'erreur Reed-Solomon
@@ -114,20 +109,21 @@ func GenerateErrorCorrection(data []byte, level string) []byte {
 }
 
 // generateGenerator génère le polynôme générateur pour Reed-Solomon
+// g(x) = (x + α^0)(x + α^1)...(x + α^(degree-1))
+// Retourne les coefficients non-dominants [g_{degree-1}, ..., g_0]
 func generateGenerator(degree int) []byte {
-	generator := make([]byte, degree)
-	generator[0] = 1
+	gen := make([]byte, degree+1)
+	gen[0] = 1
 
 	for i := 0; i < degree; i++ {
-		for j := i; j >= 0; j-- {
-			generator[j] = GfMultiply(generator[j], byte(i+1))
-			if j > 0 {
-				generator[j] ^= generator[j-1]
-			}
+		alpha := gfExp[i]
+		// Multiply gen by (x + alpha): gen[j] ^= alpha * gen[j-1] for j from i+1 down to 1
+		for j := i + 1; j > 0; j-- {
+			gen[j] ^= GfMultiply(gen[j-1], alpha)
 		}
 	}
 
-	return generator
+	return gen[1:]
 }
 
 // Polynômes générateurs pour différents niveaux de correction d'erreur
@@ -139,28 +135,21 @@ var GeneratorPolynomials = map[string][]int{
 }
 
 // AddErrorCorrectionEC ajoute les codes de correction d'erreur aux données
-// avec une implémentation plus robuste
 func AddErrorCorrectionEC(data string, ecLevel string, version int) string {
-	// Calculer le nombre de mots de code de correction d'erreur nécessaires
+	InitGaloisField()
+
 	ecWords := calculateECWords(version, ecLevel)
 
-	// Convertir les données binaires en bytes
-	dataBytes := make([]byte, 0)
-	for i := 0; i < len(data); i += 8 {
-		end := i + 8
-		if end > len(data) {
-			end = len(data)
-		}
-		byteVal := binaryStringToByte(data[i:end])
-		dataBytes = append(dataBytes, byteVal)
+	// Convert binary string to bytes
+	dataBytes := make([]byte, 0, len(data)/8)
+	for i := 0; i+8 <= len(data); i += 8 {
+		dataBytes = append(dataBytes, binaryStringToByte(data[i:i+8]))
 	}
 
-	// Générer les mots de code de correction d'erreur
-	ecBytes := generateECBytes(dataBytes, ecWords)
+	// Generate EC bytes using proper Reed-Solomon
+	ecBytes := GenerateReedSolomon(dataBytes, ecWords)
 
-	// Convertir les bytes de correction d'erreur en binaire
-	var result string
-	result = data
+	result := data
 	for _, b := range ecBytes {
 		result += fmt.Sprintf("%08b", b)
 	}
@@ -179,21 +168,39 @@ func binaryStringToByte(binary string) byte {
 	return result
 }
 
-// Calcule le nombre de mots de code de correction d'erreur nécessaires
+// totalCodewordsTable contient le nombre total de codewords par version (ISO/IEC 18004 Table 9)
+var totalCodewordsTable = []int{
+	26, 44, 70, 100, 134, 172, 196, 242, 292, 346,
+	404, 466, 532, 581, 655, 733, 815, 901, 991, 1085,
+	1156, 1258, 1364, 1474, 1588, 1706, 1828, 1921, 2051, 2185,
+	2323, 2465, 2611, 2761, 2876, 3034, 3196, 3362, 3532, 3706,
+}
+
+// DataCodewords retourne le nombre de codewords de données pour une version et un niveau EC
+func DataCodewords(version int, ecLevel string) int {
+	if version < 1 || version > 40 {
+		return 0
+	}
+	return totalCodewordsTable[version-1] - calculateECWords(version, ecLevel)
+}
+
+// calculateECWords retourne le nombre total de mots de code de correction d'erreur
+// pour une version et un niveau donnés (source: ISO/IEC 18004)
 func calculateECWords(version int, ecLevel string) int {
-	// Table simplifiée pour les versions 1-5
-	ecWordsTable := map[int]map[string]int{
-		1: {"L": 7, "M": 10, "Q": 13, "H": 17},
-		2: {"L": 10, "M": 16, "Q": 22, "H": 28},
-		3: {"L": 15, "M": 26, "Q": 36, "H": 44},
-		4: {"L": 20, "M": 36, "Q": 52, "H": 64},
-		5: {"L": 26, "M": 48, "Q": 72, "H": 88},
+	ecWordsTable := map[string][]int{
+		// Index 0 = version 1, index 39 = version 40
+		"L": {7, 10, 15, 20, 26, 36, 40, 48, 60, 72, 80, 96, 104, 120, 132, 144, 168, 180, 196, 224, 224, 252, 270, 300, 312, 336, 360, 390, 420, 450, 480, 510, 540, 570, 570, 600, 630, 660, 720, 750},
+		"M": {10, 16, 26, 36, 48, 64, 72, 88, 110, 130, 150, 176, 198, 216, 240, 280, 308, 338, 364, 416, 442, 476, 504, 560, 588, 644, 700, 728, 784, 812, 868, 924, 980, 1036, 1064, 1120, 1204, 1260, 1316, 1372},
+		"Q": {13, 22, 36, 52, 72, 96, 108, 132, 160, 192, 224, 260, 288, 320, 360, 408, 448, 504, 546, 600, 644, 690, 750, 810, 870, 952, 1020, 1050, 1140, 1200, 1290, 1350, 1440, 1530, 1590, 1680, 1770, 1860, 1950, 2040},
+		"H": {17, 28, 44, 64, 88, 112, 130, 156, 192, 224, 264, 308, 352, 384, 432, 480, 532, 588, 650, 700, 750, 816, 900, 960, 1050, 1110, 1200, 1260, 1350, 1440, 1530, 1620, 1710, 1800, 1890, 1980, 2100, 2220, 2310, 2430},
 	}
 
-	if words, ok := ecWordsTable[version][ecLevel]; ok {
-		return words
+	if table, ok := ecWordsTable[ecLevel]; ok {
+		if version >= 1 && version <= 40 {
+			return table[version-1]
+		}
 	}
-	return 10 // Valeur par défaut pour version 1-M
+	return 10
 }
 
 // Génère les bytes de correction d'erreur

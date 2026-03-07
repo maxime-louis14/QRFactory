@@ -17,11 +17,6 @@ func EncodeNumeric(data string) (string, error) {
 		end := min(i+3, len(data))
 		group := data[i:end]
 
-		// Conserver les zéros au début pour les groupes non complets
-		if len(group) < 3 && i > 0 {
-			group = strings.Repeat("0", 3-len(group)) + group
-		}
-
 		value, err := ToInt(group)
 		if err != nil {
 			return "", err

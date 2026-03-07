@@ -18,22 +18,15 @@ func CalculateMinVersion(data string) (int, error) {
 	totalBits := 4 + 8 + (len(data) * 8) // Mode (4) + Length (8) + Data (8 par caractère)
 
 	// Table de capacité en bits pour le mode byte avec niveau de correction M
-	capacityTable := map[int]int{
-		1:  128,  // 16 octets
-		2:  224,  // 28 octets
-		3:  352,  // 44 octets
-		4:  512,  // 64 octets
-		5:  688,  // 86 octets
-		6:  864,  // 108 octets
-		7:  992,  // 124 octets
-		8:  1232, // 154 octets
-		9:  1456, // 182 octets
-		10: 1728, // 216 octets
+	capacityTable := []int{
+		128, 224, 352, 512, 688, 864, 992, 1232, 1456, 1728,
+		2032, 2320, 2672, 2920, 3320, 3624, 4056, 4504, 5016, 5352,
+		5712, 6256, 6880, 7312, 8000, 8496, 9024, 9544, 10136, 10984,
+		11640, 12328, 13048, 13800, 14496, 15312, 15936, 16816, 17728, 18672,
 	}
 
-	// Trouver la première version qui peut contenir les données
-	for version := 1; version <= 10; version++ {
-		if capacity := capacityTable[version]; capacity >= totalBits {
+	for version := 1; version <= 40; version++ {
+		if capacityTable[version-1] >= totalBits {
 			return version, nil
 		}
 	}
@@ -51,9 +44,10 @@ func CalculateMinVersionForDataType(data string, dataType string) (int, error) {
 		// Mode (4) + Length (10 pour version 1-9) + Data (~3.33 bits par caractère)
 		dataLength := len(data)
 		dataBits := (dataLength / 3) * 10
-		if dataLength%3 == 1 {
+		switch dataLength % 3 {
+		case 1:
 			dataBits += 4 // 1 chiffre = 4 bits
-		} else if dataLength%3 == 2 {
+		case 2:
 			dataBits += 7 // 2 chiffres = 7 bits
 		}
 		totalBits = 4 + 10 + dataBits
@@ -74,22 +68,15 @@ func CalculateMinVersionForDataType(data string, dataType string) (int, error) {
 	}
 
 	// Table de capacité en bits pour différents modes avec niveau de correction M
-	capacityTable := map[int]int{
-		1:  128,  // 16 octets
-		2:  224,  // 28 octets
-		3:  352,  // 44 octets
-		4:  512,  // 64 octets
-		5:  688,  // 86 octets
-		6:  864,  // 108 octets
-		7:  992,  // 124 octets
-		8:  1232, // 154 octets
-		9:  1456, // 182 octets
-		10: 1728, // 216 octets
+	capacityTable := []int{
+		128, 224, 352, 512, 688, 864, 992, 1232, 1456, 1728,
+		2032, 2320, 2672, 2920, 3320, 3624, 4056, 4504, 5016, 5352,
+		5712, 6256, 6880, 7312, 8000, 8496, 9024, 9544, 10136, 10984,
+		11640, 12328, 13048, 13800, 14496, 15312, 15936, 16816, 17728, 18672,
 	}
 
-	// Trouver la première version qui peut contenir les données
-	for version := 1; version <= 10; version++ {
-		if capacity := capacityTable[version]; capacity >= totalBits {
+	for version := 1; version <= 40; version++ {
+		if capacityTable[version-1] >= totalBits {
 			return version, nil
 		}
 	}
@@ -203,11 +190,11 @@ func GenerateQRMatrix(version int, data string, errorCorrectionLevel string) *im
 	// Ajouter les motifs de repérage
 	AddFinderPatterns(matrix)
 	AddSeparators(matrix)
-	AddAlignmentPatterns(matrix, version)
+	AddAlignmentPatterns(matrix, size)
 	AddTimingPatterns(matrix)
 
 	// Calculer la capacité disponible
-	capacity := calculateAvailableCapacity(size)
+	capacity := calculateAvailableCapacity(size, errorCorrectionLevel)
 
 	// Vérifier si les données encodées dépassent la capacité
 	if encodedData.Len() > capacity {
@@ -218,9 +205,32 @@ func GenerateQRMatrix(version int, data string, errorCorrectionLevel string) *im
 		return GenerateQRMatrix(newVersion, data, errorCorrectionLevel) // Appel récursif avec version supérieure
 	}
 
-	// Ajouter le terminateur
-	for encodedData.Len() < capacity && encodedData.Len() < capacity-4 {
+	// 1. Ajouter le terminateur (max 4 zéros)
+	termLen := 4
+	if remaining := capacity - encodedData.Len(); remaining < 4 {
+		termLen = remaining
+	}
+	if termLen < 0 {
+		termLen = 0
+	}
+	for i := 0; i < termLen; i++ {
 		encodedData.WriteString("0")
+	}
+
+	// 2. Aligner sur un octet
+	for encodedData.Len()%8 != 0 {
+		encodedData.WriteString("0")
+	}
+
+	// 3. Remplir avec les octets de bourrage (0xEC=11101100, 0x11=00010001)
+	padByte := 0
+	for encodedData.Len() < capacity {
+		if padByte%2 == 0 {
+			encodedData.WriteString("11101100")
+		} else {
+			encodedData.WriteString("00010001")
+		}
+		padByte++
 	}
 
 	// Ajouter la correction d'erreur
@@ -483,132 +493,75 @@ func AddSeparators(matrix *image.RGBA) {
 	}
 }
 
-// PlaceData place les données dans la matrice QR selon le motif en zigzag
+// PlaceData place les données dans la matrice QR selon le motif en zigzag standard
 func PlaceData(matrix *image.RGBA, data string) {
 	size := matrix.Bounds().Max.X
-	dataIndex := 0
-	upward := true
 
-	// Vérifier la longueur des données
-	fmt.Printf("Données à placer : %s (longueur: %d)\n", data, len(data))
-
-	// Calculer le nombre total de modules disponibles pour les données
-	totalModules := 0
-
-	// Pré-calculer toutes les positions valides pour les données
-	for x := 0; x < size; x++ {
-		for y := 0; y < size; y++ {
-			if isValidDataPosition(x, y, size) {
-				totalModules++
-			}
-		}
-	}
-
-	// Préparer une liste de valeurs à placer
-	// Cette liste contient d'abord les données encodées, puis des bits de remplissage (padding)
-	// qui suivent le standard QR (alternance de 236 et 17 en décimal, ou 11101100 et 00010001 en binaire)
-	var valuesToPlace []byte
-
-	// Ajouter les données encodées
+	// Convert data string to bit slice
+	bits := make([]byte, 0, len(data))
 	for i := 0; i < len(data); i++ {
 		if data[i] == '1' {
-			valuesToPlace = append(valuesToPlace, 1)
-		} else if data[i] == '0' {
-			valuesToPlace = append(valuesToPlace, 0)
+			bits = append(bits, 1)
 		} else {
-			// Ignorer les séparateurs mais compter l'index
-			dataIndex++
+			bits = append(bits, 0)
+		}
+	}
+
+	bitIndex := 0
+	goingUp := true
+
+	// Process column pairs from right to left, skipping timing column 6
+	col := size - 1
+	for col > 0 {
+		if col == 6 {
+			col--
 			continue
 		}
-	}
 
-	// Compléter avec les bits de remplissage selon le standard QR
-	// Remplir avec des motifs 11101100 et 00010001 en alternance
-	paddingPattern := []byte{1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1}
-	paddingIndex := 0
-
-	for len(valuesToPlace) < totalModules {
-		valuesToPlace = append(valuesToPlace, paddingPattern[paddingIndex%len(paddingPattern)])
-		paddingIndex++
-	}
-
-	// Remplir efficacement la matrice en zigzag, en commençant par le coin en bas à droite
-	for x := size - 1; x >= 0; x -= 2 {
-		// Traiter deux colonnes à la fois (la colonne actuelle et celle à sa gauche)
-		for dx := 0; dx <= 1 && x-dx >= 0; dx++ {
-			currentX := x - dx
-
-			// Sauter la colonne de timing
-			if currentX == 6 {
-				continue
-			}
-
-			if upward {
-				// Monter (de bas en haut)
-				for y := size - 1; y >= 0; y-- {
-					if isValidDataPosition(currentX, y, size) {
-						if dataIndex < len(data) && data[dataIndex] != '-' {
-							fmt.Printf("Module placé à (%d,%d): %c [Total: %d]\n",
-								currentX, y, data[dataIndex], dataIndex+1)
-							if data[dataIndex] == '1' {
-								matrix.Set(currentX, y, color.Black)
-							} else {
-								matrix.Set(currentX, y, color.White)
-							}
-						} else if dataIndex < len(data) {
-							// Si c'est '-' ou autre (séparateur), on saute ce bit mais on compte
-							fmt.Printf("Module ignoré à (%d,%d): %c [séparateur]\n",
-								currentX, y, data[dataIndex])
-						} else {
-							// Si on a fini de placer les données, utiliser le padding calculé
-							valueIndex := dataIndex - (len(data) - len(valuesToPlace))
-							if valueIndex >= 0 && valueIndex < len(valuesToPlace) {
-								if valuesToPlace[valueIndex] == 1 {
-									matrix.Set(currentX, y, color.Black)
-								} else {
-									matrix.Set(currentX, y, color.White)
-								}
-							}
-						}
-						dataIndex++
+		// For each row in the current direction
+		if goingUp {
+			for row := size - 1; row >= 0; row-- {
+				for dx := 0; dx < 2; dx++ {
+					c := col - dx
+					if c < 0 {
+						continue
 					}
-				}
-			} else {
-				// Descendre (de haut en bas)
-				for y := 0; y < size; y++ {
-					if isValidDataPosition(currentX, y, size) {
-						if dataIndex < len(data) && data[dataIndex] != '-' {
-							fmt.Printf("Module placé à (%d,%d): %c [Total: %d]\n",
-								currentX, y, data[dataIndex], dataIndex+1)
-							if data[dataIndex] == '1' {
-								matrix.Set(currentX, y, color.Black)
+					if isValidDataPosition(c, row, size) {
+						if bitIndex < len(bits) {
+							if bits[bitIndex] == 1 {
+								matrix.Set(c, row, color.Black)
 							} else {
-								matrix.Set(currentX, y, color.White)
+								matrix.Set(c, row, color.White)
 							}
-						} else if dataIndex < len(data) {
-							// Si c'est '-' ou autre (séparateur), on saute ce bit mais on compte
-							fmt.Printf("Module ignoré à (%d,%d): %c [séparateur]\n",
-								currentX, y, data[dataIndex])
-						} else {
-							// Si on a fini de placer les données, utiliser le padding calculé
-							valueIndex := dataIndex - (len(data) - len(valuesToPlace))
-							if valueIndex >= 0 && valueIndex < len(valuesToPlace) {
-								if valuesToPlace[valueIndex] == 1 {
-									matrix.Set(currentX, y, color.Black)
-								} else {
-									matrix.Set(currentX, y, color.White)
-								}
-							}
+							bitIndex++
 						}
-						dataIndex++
 					}
 				}
 			}
-			upward = !upward
+		} else {
+			for row := 0; row < size; row++ {
+				for dx := 0; dx < 2; dx++ {
+					c := col - dx
+					if c < 0 {
+						continue
+					}
+					if isValidDataPosition(c, row, size) {
+						if bitIndex < len(bits) {
+							if bits[bitIndex] == 1 {
+								matrix.Set(c, row, color.Black)
+							} else {
+								matrix.Set(c, row, color.White)
+							}
+							bitIndex++
+						}
+					}
+				}
+			}
 		}
-	}
 
-	fmt.Printf("Total des modules placés : %d\n", dataIndex)
+		goingUp = !goingUp
+		col -= 2
+	}
 }
 
 // isValidDataPosition vérifie si une position peut contenir des données
@@ -630,13 +583,11 @@ func isValidDataPosition(x, y, size int) bool {
 		return false
 	}
 
-	// Vérifier les motifs d'alignement
+	// Vérifier les motifs d'alignement (exclure tout le carré 5×5)
 	alignmentPositions := getAlignmentPositions(size)
 	for _, pos := range alignmentPositions {
 		ax, ay := pos[0], pos[1]
-		// Ne pas exclure la zone centrale du motif d'alignement
-		if (x == ax-2 || x == ax+2 || y == ay-2 || y == ay+2) &&
-			(x >= ax-2 && x <= ax+2 && y >= ay-2 && y <= ay+2) {
+		if x >= ax-2 && x <= ax+2 && y >= ay-2 && y <= ay+2 {
 			return false
 		}
 	}
@@ -886,80 +837,65 @@ func SaveQRImageWithQuietZone(matrix *image.RGBA, outputFile string, scale int, 
 	return nil
 }
 
-// AddFormatInfo ajoute l'information de format au QR code
+// setFormatBit place un bit de format info (noir=true, blanc=false)
+func setFormatBit(matrix *image.RGBA, x, y int, black bool) {
+	if black {
+		matrix.Set(x, y, color.Black)
+	} else {
+		matrix.Set(x, y, color.White)
+	}
+}
+
+// AddFormatInfo ajoute l'information de format au QR code selon ISO/IEC 18004
+// Les positions sont vérifiées d'après la table 25 du standard.
 func AddFormatInfo(matrix *image.RGBA, ecLevel string, maskPattern int) {
 	formatInfoBits := FormatInfo[ecLevel][maskPattern]
 	size := matrix.Bounds().Max.X
 
-	// Placer l'information de format autour du motif de positionnement en haut à gauche
 	for i := 0; i < 15; i++ {
 		bit := formatInfoBits[i] == '1'
-		if i < 6 {
-			// Position horizontale
-			if bit {
-				matrix.Set(i, 8, color.Black)
-			} else {
-				matrix.Set(i, 8, color.White)
-			}
-		} else if i < 8 {
-			// Position horizontale (après le timing pattern)
-			if bit {
-				matrix.Set(i+1, 8, color.Black)
-			} else {
-				matrix.Set(i+1, 8, color.White)
-			}
-		} else {
-			// Position verticale
-			if bit {
-				matrix.Set(8, size-1-(14-i), color.Black)
-			} else {
-				matrix.Set(8, size-1-(14-i), color.White)
-			}
+
+		// --- Première copie (autour du finder haut-gauche) ---
+		// Bits 0-7 : horizontaux sur la ligne y=8 (cols 0→8, on saute col 6=timing)
+		// Bits 8-14 : verticaux sur la col x=8 (rows 7→0, on saute row 6=timing)
+		switch {
+		case i < 6:
+			setFormatBit(matrix, i, 8, bit)
+		case i == 6:
+			setFormatBit(matrix, 7, 8, bit) // saute x=6 (timing)
+		case i == 7:
+			setFormatBit(matrix, 8, 8, bit)
+		case i == 8:
+			setFormatBit(matrix, 8, 7, bit)
+		default:
+			// i=9→y=5, i=10→y=4, ..., i=14→y=0  (on saute y=6 entre i=8 et i=9)
+			setFormatBit(matrix, 8, 14-i, bit)
 		}
 
-		// Copier l'information de format sur le côté droit et en bas
-		if i < 7 {
-			if bit {
-				matrix.Set(size-7+i, 8, color.Black)
-			} else {
-				matrix.Set(size-7+i, 8, color.White)
-			}
+		// --- Deuxième copie (finder haut-droit + finder bas-gauche) ---
+		// Bits 0-7 : sur la ligne y=8, cols size-1 → size-8 (de l'extérieur vers l'intérieur)
+		// Bits 8-14 : sur la col x=8, rows size-7 → size-1
+		if i < 8 {
+			setFormatBit(matrix, size-1-i, 8, bit)
 		} else {
-			if bit {
-				matrix.Set(8, 6-(i-7), color.Black)
-			} else {
-				matrix.Set(8, 6-(i-7), color.White)
-			}
+			setFormatBit(matrix, 8, size-7+(i-8), bit)
 		}
 	}
+
+	// Module sombre (toujours noir) : position (8, 4*version+9)
+	version := (size - 17) / 4
+	matrix.Set(8, 4*version+9, color.Black)
 }
 
-// Ajout d'une fonction pour calculer la capacité disponible
-func calculateAvailableCapacity(size int) int {
-	// Version calculée à partir de la taille
+// calculateAvailableCapacity retourne la capacité en bits pour les données
+// selon la taille de la matrice et le niveau de correction d'erreur.
+func calculateAvailableCapacity(size int, ecLevel string) int {
 	version := (size - 17) / 4
-
-	// Tableau de capacités officielles en bits pour chaque version (Mode byte, niveau de correction M)
-	// Ces valeurs sont tirées de la spécification ISO/IEC 18004
-	capacityTable := map[int]int{
-		1:  128,  // 16 octets
-		2:  224,  // 28 octets
-		3:  352,  // 44 octets
-		4:  512,  // 64 octets
-		5:  688,  // 86 octets
-		6:  864,  // 108 octets
-		7:  992,  // 124 octets
-		8:  1232, // 154 octets
-		9:  1456, // 182 octets
-		10: 1728, // 216 octets
+	if version >= 1 && version <= 40 {
+		return DataCodewords(version, ecLevel) * 8
 	}
 
-	// Utiliser la valeur tabulée si disponible
-	if capacity, ok := capacityTable[version]; ok {
-		return capacity
-	}
-
-	// Fallback : calculer en comptant les positions valides
+	// Fallback : compter les positions valides
 	capacity := 0
 	for x := 0; x < size; x++ {
 		for y := 0; y < size; y++ {
