@@ -24,7 +24,15 @@ var rootCmd = &cobra.Command{
 It supports various data types, error correction levels, and customization options.
 See https://github.com/le-veilleur for more information.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("QRFactory - Starting...")
+		fmt.Println(`
+  ██████╗ ██████╗ ███████╗ █████╗  ██████╗████████╗ ██████╗ ██████╗ ██╗   ██╗
+ ██╔═══██╗██╔══██╗██╔════╝██╔══██╗██╔════╝╚══██╔══╝██╔═══██╗██╔══██╗╚██╗ ██╔╝
+ ██║   ██║██████╔╝█████╗  ███████║██║        ██║   ██║   ██║██████╔╝ ╚████╔╝
+ ██║▄▄ ██║██╔══██╗██╔══╝  ██╔══██║██║        ██║   ██║   ██║██╔══██╗  ╚██╔╝
+ ╚██████╔╝██║  ██║██║     ██║  ██║╚██████╗   ██║   ╚██████╔╝██║  ██║   ██║
+  ╚══▀▀═╝ ╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝   ╚═╝
+                         QR Code Generator — ISO/IEC 18004
+`)
 		start := time.Now()
 
 		// Validate configuration

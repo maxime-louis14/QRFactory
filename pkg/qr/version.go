@@ -35,6 +35,16 @@ var VersionInfo = map[int]struct {
 	28: {129, 129},
 	29: {133, 133},
 	30: {137, 137},
+	31: {141, 141},
+	32: {145, 145},
+	33: {149, 149},
+	34: {153, 153},
+	35: {157, 157},
+	36: {161, 161},
+	37: {165, 165},
+	38: {169, 169},
+	39: {173, 173},
+	40: {177, 177},
 }
 
 // FormatInfo contient les bits d'information de format pour chaque masque et niveau de correction

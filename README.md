@@ -1,6 +1,22 @@
 # QRFactory
 
-QRFactory est une application Go en cours de développement, conçue pour générer des codes QR en respectant la norme ISO/IEC 18004. Ce projet utilise une architecture modulaire et une approche de développement pilotée par les tests (TDD) pour garantir un code robuste et maintenable.
+```
+ ██████╗ ██████╗ ███████╗ █████╗  ██████╗████████╗ ██████╗ ██████╗ ██╗   ██╗
+██╔═══██╗██╔══██╗██╔════╝██╔══██╗██╔════╝╚══██╔══╝██╔═══██╗██╔══██╗╚██╗ ██╔╝
+██║   ██║██████╔╝█████╗  ███████║██║        ██║   ██║   ██║██████╔╝ ╚████╔╝
+██║▄▄ ██║██╔══██╗██╔══╝  ██╔══██║██║        ██║   ██║   ██║██╔══██╗  ╚██╔╝
+╚██████╔╝██║  ██║██║     ██║  ██║╚██████╗   ██║   ╚██████╔╝██║  ██║   ██║
+ ╚══▀▀═╝ ╚═╝  ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝   ╚═╝
+
+  ██████╗ ██████╗      ██████╗ ███████╗███╗   ██╗███████╗██████╗  █████╗ ████████╗ ██████╗ ██████╗
+ ██╔═══██╗██╔══██╗    ██╔════╝ ██╔════╝████╗  ██║██╔════╝██╔══██╗██╔══██╗╚══██╔══╝██╔═══██╗██╔══██╗
+ ██║   ██║██████╔╝    ██║  ███╗█████╗  ██╔██╗ ██║█████╗  ██████╔╝███████║   ██║   ██║   ██║██████╔╝
+ ██║▄▄ ██║██╔══██╗    ██║   ██║██╔══╝  ██║╚██╗██║██╔══╝  ██╔══██╗██╔══██║   ██║   ██║   ██║██╔══██╗
+ ╚██████╔╝██║  ██║    ╚██████╔╝███████╗██║ ╚████║███████╗██║  ██║██║  ██║   ██║   ╚██████╔╝██║  ██║
+  ╚══▀▀═╝ ╚═╝  ╚═╝     ╚═════╝ ╚══════╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝   ╚═╝    ╚═════╝ ╚═╝  ╚═╝
+```
+
+QRFactory est un générateur de codes QR écrit from-scratch en Go, implémentant la norme ISO/IEC 18004. Le projet adopte une architecture modulaire et une approche TDD.
 
 ## Table des matières
 
@@ -18,7 +34,7 @@ QRFactory est une application Go en cours de développement, conçue pour géné
 1. **Cloner le dépôt :**
 
    ```sh
-   git clone https://github.com/votre-utilisateur/QRFactory.git
+   git clone https://github.com/le-veilleur/QRFactory.git
    cd QRFactory
    ```
 
@@ -28,90 +44,90 @@ QRFactory est une application Go en cours de développement, conçue pour géné
    go mod tidy
    ```
 
+3. **Compiler le binaire :**
+
+   ```sh
+   go build -o qrfactory cmd/qrfactory/main.go
+   ```
+
+4. **(Optionnel) Installer globalement :**
+
+   ```sh
+   mv qrfactory /usr/local/bin/
+   ```
+
+   Le binaire sera alors accessible depuis n'importe quel répertoire :
+
+   ```sh
+   qrfactory -d "https://example.com"
+   ```
+
 ## Utilisation
 
-Pour générer un code QR, exécutez la commande suivante :
-
 ```sh
-go run cmd/qrfactory/main.go
+go run cmd/qrfactory/main.go -d "https://example.com"
 ```
 
 ### Interface en ligne de commande (CLI)
 
-QRFactory propose une interface en ligne de commande complète avec plusieurs options de personnalisation :
-
 ```sh
-go run cmd/qrfactory/main.go -d "https://github.com/le-veilleur" -s 10
+go run cmd/qrfactory/main.go -d "DONNÉES" [options]
 ```
 
 Options disponibles :
-- `-d, --data` : Données à encoder dans le QR code (obligatoire)
-- `-s, --scale` : Facteur d'échelle pour l'image (défaut: 10)
-- `-v, --version` : Version du QR code (1-40, défaut: 1)
-- `-e, --error-level` : Niveau de correction d'erreur (L, M, Q, H, défaut: L)
-- `-o, --output` : Nom du fichier de sortie (défaut: qrcode.png)
-- `--bg-color` : Couleur de fond (défaut: white)
-- `--fg-color` : Couleur des modules (défaut: black)
 
-Exemples d'utilisation :
+| Flag | Raccourci | Description | Défaut |
+|------|-----------|-------------|--------|
+| `--data` | `-d` | Données à encoder (obligatoire) | — |
+| `--scale` | `-s` | Facteur d'échelle de l'image | `30` |
+| `--version` | `-v` | Version du QR code (1–40) | auto |
+| `--error-correction` | `-e` | Niveau de correction d'erreur (L, M, Q, H) | `H` |
+| `--output` | `-o` | Fichier de sortie | `qrcode.png` |
+| `--quiet-zone` | `-q` | Largeur de la zone calme (en modules) | `4` |
+| `--bg-color` | | Couleur de fond | `white` |
+| `--fg-color` | | Couleur des modules | `black` |
+
+Exemples :
+
 ```sh
-# Générer un QR code simple
-go run cmd/qrfactory/main.go -d "https://github.com/le-veilleur"
+# QR code simple
+go run cmd/qrfactory/main.go -d "https://example.com"
 
-# Générer un QR code avec une échelle personnalisée
-go run cmd/qrfactory/main.go -d "https://github.com/le-veilleur" -s 15
+# Avec échelle et niveau de correction personnalisés
+go run cmd/qrfactory/main.go -d "https://example.com" -s 20 -e M -o output.png
 
-# Générer un QR code avec un niveau de correction d'erreur élevé
-go run cmd/qrfactory/main.go -d "https://github.com/le-veilleur" -e H
+# Avec zone calme élargie
+go run cmd/qrfactory/main.go -d "HELLO WORLD" -q 8
 
-# Générer un QR code avec des couleurs personnalisées
-go run cmd/qrfactory/main.go -d "https://github.com/le-veilleur" --bg-color "#FFFFFF" --fg-color "#000000"
+# Afficher la version du programme
+go run cmd/qrfactory/main.go version
 ```
-
-### Exemple
-
-Pour générer un code QR avec le texte "HELLO WORLD" :
-
-1. Ouvrez `cmd/qrfactory/main.go` et modifiez le contenu comme suit :
-
-    ```go
-    package main
-
-    import (
-        "QRFactory/pkg/qr"
-        "log"
-    )
-
-    func main() {
-        err := qr.GenerateQRCode("HELLO WORLD", 1, "L", "qrcode.png")
-        if err != nil {
-            log.Fatalf("Failed to generate QR code: %v", err)
-        }
-    }
-    ```
-
-2. Exécutez le programme :
-
-    ```sh
-    go run cmd/qrfactory/main.go
-    ```
-
-    Cela générera un fichier `qrcode.png` dans le répertoire courant.
 
 ## Architecture
 
-Le projet est structuré comme suit :
+Pipeline de génération (orchestré dans `pkg/qr/generator.go`) :
+
+1. Détection du type de données (`detect.go`) — numérique, alphanumérique, byte, kanji
+2. Calcul de la version minimale requise
+3. Encodage des bits de données (`encoding.go`) — indicateur de mode + longueur + données
+4. Construction de la matrice `image.RGBA`, placement des motifs structurels (finder, séparateur, alignement, timing)
+5. Correction d'erreur (`error_correction.go`) via le corps de Galois (`InitGaloisField`)
+6. Placement des données en zigzag sur les modules valides
+7. Évaluation des 8 masques, sélection du score de pénalité le plus faible (`mask.go`)
+8. Ajout des bits d'information de format autour des finder patterns
+9. Sauvegarde PNG avec zone calme (`SaveQRImageWithQuietZone`)
+
+Structure du projet :
 
 ```
-/QRFactory
-│
+QRFactory/
 ├── cmd/
+│   ├── main.go                  # Ancien point d'entrée CLI (sans quiet zone)
 │   └── qrfactory/
-│       └── main.go
+│       └── main.go              # Point d'entrée principal CLI (Cobra)
 │
 ├── internal/
-│   │
-│   ├── model/
+│   └── model/
 │       ├── qr_code.go
 │       └── qr_code_test.go
 │
@@ -119,72 +135,63 @@ Le projet est structuré comme suit :
 │   ├── config/
 │   │   ├── config.go
 │   │   └── config_test.go
-│   │
 │   └── qr/
-│       ├── generator.go
-│       └── generator_test.go
+│       ├── detect.go            # Détection du type de données
+│       ├── encoding.go          # Encodage numérique, alphanumérique, byte, kanji
+│       ├── error_correction.go  # Correction d'erreur Reed-Solomon
+│       ├── generator.go         # Orchestration du pipeline de génération
+│       ├── mask.go              # Application et évaluation des masques
+│       ├── utils.go             # Utilitaires
+│       ├── version.go           # Tables de capacité et de correction
+│       ├── e2e_test.go
+│       ├── generator_test.go
+│       ├── unit_test.go
+│       └── tests/
+│           └── encoding_test.go
 │
 ├── go.mod
 └── go.sum
 ```
 
-- **cmd/** : Contient l'application principale.
-- **internal/** : Contient la logique métier et les handlers API.
-- **pkg/** : Contient les packages réutilisables, y compris la logique de génération des QR codes.
-
 ## Tests
 
-Les tests sont écrits en utilisant le package de test standard de Go. Pour exécuter les tests, utilisez la commande suivante :
-
 ```sh
+# Tous les tests
 go test ./...
+
+# Package spécifique
+go test ./pkg/qr/...
+
+# Test unique
+go test ./pkg/qr/ -run TestEncodeNumeric
 ```
 
-### Exemple de test
-
-Un test d'encodage numérique :
-
-```go
-package qr
-
-import "testing"
-
-func TestEncodeNumeric(t *testing.T) {
-    data := "1234567890"
-    expected := "00010000001100010000110100110000001100011000110100"
-    result := EncodeNumeric(data)
-    if result != expected {
-        t.Errorf("Expected %s but got %s", expected, result)
-    }
-}
-```
+Les tests couvrent : l'encodage (numérique, alphanumérique, byte, kanji), Reed-Solomon, le placement des données, les informations de format, et des tests E2E avec décodage réel via `gozxing`.
 
 ## Contribuer
 
-Les contributions sont les bienvenues ! Veuillez suivre les étapes suivantes pour contribuer :
-
 1. Forkez le dépôt.
-2. Créez une branche pour votre fonctionnalité (`git checkout -b feature/ma-nouvelle-fonctionnalité`).
-3. Commitez vos modifications (`git commit -am 'Ajoute une nouvelle fonctionnalité'`).
-4. Poussez votre branche (`git push origin feature/ma-nouvelle-fonctionnalité`).
-5. Créez une Pull Request.
+2. Créez une branche (`git checkout -b feature/ma-fonctionnalite`).
+3. Commitez vos modifications (`git commit -am 'Ajoute une fonctionnalité'`).
+4. Poussez la branche (`git push origin feature/ma-fonctionnalite`).
+5. Ouvrez une Pull Request.
 
 ## État du développement
 
-Ce projet est en cours de développement. Voici les fonctionnalités actuellement implémentées :
-
+- [x] Détection du type de données (numérique, alphanumérique, byte, kanji)
 - [x] Encodage numérique
 - [x] Encodage alphanumérique
 - [x] Encodage byte
-- [x] Encodage Kanji
-- [ ] Génération d'image QR code
-- [ ] Interface utilisateur (API ou CLI)
-
-Nous travaillons activement sur l'ajout de nouvelles fonctionnalités et l'amélioration des fonctionnalités existantes.
+- [x] Encodage kanji
+- [x] Correction d'erreur Reed-Solomon (corps de Galois GF(256))
+- [x] Placement des motifs structurels (finder, séparateur, timing, alignement)
+- [x] Placement des données en zigzag
+- [x] Application et sélection du masque optimal (8 masques, 4 règles de pénalité)
+- [x] Informations de format (EC level + masque)
+- [x] Génération d'image PNG (avec zone calme configurable)
+- [x] Interface CLI complète (Cobra)
+- [x] Tests unitaires et E2E
 
 ## Licence
 
 Ce projet est sous licence MIT. Voir le fichier [LICENSE](LICENSE) pour plus de détails.
-
-Ce `README.md` reflète maintenant l'état de développement en cours du projet QRFactory et indique les fonctionnalités déjà implémentées et celles qui restent à développer.
-Cela permet aux contributeurs et aux utilisateurs de mieux comprendre où en est le projet et ce qu'il reste à faire.
