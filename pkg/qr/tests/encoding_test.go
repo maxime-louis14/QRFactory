@@ -69,18 +69,18 @@ func TestEncodeAlphanumeric(t *testing.T) {
 		{
 			name:     "Encode two characters",
 			input:    "AB",
-			expected: "00010100110",
+			expected: "00111001101", // A=10, B=11 → 10*45+11=461 → 11 bits
 			wantErr:  false,
 		},
 		{
 			name:     "Encode with special characters",
 			input:    "A$",
-			expected: "00010111000",
+			expected: "00111100111", // A=10, $=37 → 10*45+37=487 → 11 bits
 			wantErr:  false,
 		},
 		{
 			name:     "Invalid alphanumeric input",
-			input:    "a",
+			input:    "@",
 			expected: "",
 			wantErr:  true,
 		},
@@ -145,7 +145,7 @@ func TestEncodeKanji(t *testing.T) {
 		{
 			name:     "Encode Hiragana",
 			input:    "あ",
-			expected: "1000100000001",
+			expected: "0000100100000", // SJIS 0x82A0 → (0x01*0xC0)+0x60=288 → 13 bits
 			wantErr:  false,
 		},
 		{

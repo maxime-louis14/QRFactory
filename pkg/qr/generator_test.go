@@ -66,13 +66,13 @@ func TestEncodeNumeric(t *testing.T) {
 		{
 			name:     "Nombres simples",
 			input:    "12345",
-			expected: "00011110110000101101",
+			expected: "00011110110101101", // "123"→10 bits + "45"→7 bits
 			wantErr:  false,
 		},
 		{
 			name:     "Nombres avec zéros",
 			input:    "00123",
-			expected: "00000000010000010111",
+			expected: "00000000010010111", // "001"→10 bits + "23"→7 bits
 			wantErr:  false,
 		},
 	}
